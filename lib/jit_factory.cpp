@@ -86,10 +86,9 @@ static ExecutionEngineMonitor &get_eemon(void)
  * Helper function to call a clang compliation -- execs clang
  **********************************************************************/
 #ifdef HAVE_LLVM
+
 static llvm::Module *call_clang_exe(const std::string &source_file, const std::vector<std::string> &flags)
 {
-    std::cout << "GRAS compiler: compile source into bitcode..." << std::endl;
-
     //make up bitcode file path
     char bitcode_file[L_tmpnam];
     if (std::tmpnam(bitcode_file) == NULL) throw std::runtime_error("GRAS compiler: tmp bitcode file path failed");
@@ -123,11 +122,58 @@ static llvm::Module *call_clang_exe(const std::string &source_file, const std::v
         command += c + " ";
     }
     std::cout << "  " << command << std::endl;
+    /*
     const int ret = system(command.c_str());
     if (ret != 0)
     {
         throw std::runtime_error("GRAS compiler: error system exec clang");
     }
+    //*/
+
+
+
+
+
+
+//*
+    std::vector<const char *> args;
+    BOOST_FOREACH(const std::string &c, cmd)
+    {
+        args.push_back(c.c_str());
+    }
+
+
+    // The clang driver needs a DiagnosticsEngine so it can report problems
+    clang::IntrusiveRefCntPtr<clang::DiagnosticOptions> DiagOptions(new clang::DiagnosticOptions());
+    clang::IntrusiveRefCntPtr<clang::DiagnosticIDs> DiagID(new clang::DiagnosticIDs());
+    clang::DiagnosticsEngine Diags(DiagID, DiagOptions.getPtr());
+
+    // Create the clang driver
+    clang::driver::Driver TheDriver(args[0], llvm::sys::getDefaultTargetTriple(), "", true, Diags);
+
+    // If you want to build C++ instead of C
+    TheDriver.CCCIsCXX = true;
+
+    // Create the set of actions to perform
+    clang::OwningPtr<clang::driver::Compilation> C(TheDriver.BuildCompilation(args));
+
+    // Print the set of actions
+    TheDriver.PrintActions(*C);
+
+    // Carry out the actions
+    int Res = 0;
+    const clang::driver::Command *FailingCommand = 0;
+    if (C) Res = TheDriver.ExecuteCompilation(*C, FailingCommand);
+
+    // Report problems
+    if (Res != 0)
+    {
+        TheDriver.generateCompilationDiagnostics(*C, FailingCommand);
+        throw std::runtime_error("GRAS compiler: error system exec clang");
+    }
+//*/
+
+
 
     //readback bitcode for result
     std::ifstream bitcode_fstream(bitcode_file);
